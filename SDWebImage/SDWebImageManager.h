@@ -10,7 +10,7 @@
 #import "SDWebImageOperation.h"
 #import "SDWebImageDownloader.h"
 #import "SDImageCache.h"
-#import "SDImagePermanentCache.h"
+
 
 typedef enum
 {
@@ -34,8 +34,8 @@ typedef enum
      */
     SDWebImageProgressiveDownload = 1 << 3,
     /**
-     * This flag enables usage of SDImagePermanentCache to cache images
-     * By default, the image use SDImageCache with default max cache age.
+     * This flag allows to cache image in permanent cache that will flush only when developer needs to.
+     * By default, the image use default cache with respect to max cache age.
      */
     SDWebImagePermanentCache = 1 << 4
 
@@ -67,8 +67,8 @@ typedef void(^SDWebImageCompletedWithFinishedBlock)(UIImage *image, NSError *err
  *                 }];
  */
 @interface SDWebImageManager : NSObject
+@property (strong, nonatomic, readonly) SDImageCache *imageCache;
 
-//@property (strong, nonatomic, readonly) SDImageCache *imageCache;
 @property (strong, nonatomic, readonly) SDWebImageDownloader *imageDownloader;
 
 /**

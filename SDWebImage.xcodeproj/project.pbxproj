@@ -22,8 +22,6 @@
 /* End PBXAggregateTarget section */
 
 /* Begin PBXBuildFile section */
-		25431A9616983DE30034794E /* SDImagePermanentCache.h in Headers */ = {isa = PBXBuildFile; fileRef = 25431A9416983DE30034794E /* SDImagePermanentCache.h */; };
-		25431A9716983DE30034794E /* SDImagePermanentCache.m in Sources */ = {isa = PBXBuildFile; fileRef = 25431A9516983DE30034794E /* SDImagePermanentCache.m */; };
 		530E49E816464C25002868E7 /* SDWebImageOperation.h in Headers */ = {isa = PBXBuildFile; fileRef = 530E49E71646388E002868E7 /* SDWebImageOperation.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		530E49E916464C26002868E7 /* SDWebImageOperation.h in Headers */ = {isa = PBXBuildFile; fileRef = 530E49E71646388E002868E7 /* SDWebImageOperation.h */; settings = {ATTRIBUTES = (Public, ); }; };
 		530E49EA16464C7C002868E7 /* SDWebImageDownloaderOperation.h in Headers */ = {isa = PBXBuildFile; fileRef = 530E49E316460AE2002868E7 /* SDWebImageDownloaderOperation.h */; settings = {ATTRIBUTES = (Public, ); }; };
@@ -82,8 +80,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		25431A9416983DE30034794E /* SDImagePermanentCache.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDImagePermanentCache.h; sourceTree = "<group>"; };
-		25431A9516983DE30034794E /* SDImagePermanentCache.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SDImagePermanentCache.m; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objc; };
 		530E49E316460AE2002868E7 /* SDWebImageDownloaderOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SDWebImageDownloaderOperation.h; sourceTree = "<group>"; };
 		530E49E416460AE2002868E7 /* SDWebImageDownloaderOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = SDWebImageDownloaderOperation.m; sourceTree = "<group>"; };
 		530E49E71646388E002868E7 /* SDWebImageOperation.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SDWebImageOperation.h; sourceTree = "<group>"; };
@@ -197,8 +193,6 @@
 			children = (
 				53922D85148C56230056699D /* SDImageCache.h */,
 				53922D86148C56230056699D /* SDImageCache.m */,
-				25431A9416983DE30034794E /* SDImagePermanentCache.h */,
-				25431A9516983DE30034794E /* SDImagePermanentCache.m */,
 			);
 			name = Cache;
 			sourceTree = "<group>";
@@ -262,7 +256,6 @@
 				53761320155AD0D5005750A4 /* UIImageView+WebCache.h in Headers */,
 				530E49E816464C25002868E7 /* SDWebImageOperation.h in Headers */,
 				530E49EA16464C7C002868E7 /* SDWebImageDownloaderOperation.h in Headers */,
-				25431A9616983DE30034794E /* SDImagePermanentCache.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -393,7 +386,6 @@
 				5376130F155AD0D5005750A4 /* UIImageView+WebCache.m in Sources */,
 				530E49EC16464C84002868E7 /* SDWebImageDownloaderOperation.m in Sources */,
 				53406750167780C40042B59E /* SDWebImageCompat.m in Sources */,
-				25431A9716983DE30034794E /* SDImagePermanentCache.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

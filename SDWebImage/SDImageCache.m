@@ -19,6 +19,7 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 
 @property (strong, nonatomic) NSCache *memCache;
 @property (strong, nonatomic) NSString *diskCachePath;
+@property (strong, nonatomic) NSString *permanentDiskCachePath;
 @property (SDDispatchQueueSetterSementics, nonatomic) dispatch_queue_t ioQueue;
 
 @end
@@ -58,6 +59,7 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
         // Init the disk cache
         NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
         _diskCachePath = [paths[0] stringByAppendingPathComponent:fullNamespace];
+        _permanentDiskCachePath = [paths[0] stringByAppendingPathComponent:[NSString stringWithFormat:@"permanent_%@", fullNamespace]];
 
 #if TARGET_OS_IPHONE
         // Subscribe to app events
@@ -84,20 +86,26 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 
 #pragma mark SDImageCache (private)
 
-- (NSString *)cachePathForKey:(NSString *)key
+- (NSString *)cachePathForKey:(NSString *)key directory:(NSString *)dir
 {
     const char *str = [key UTF8String];
     unsigned char r[CC_MD5_DIGEST_LENGTH];
     CC_MD5(str, (CC_LONG)strlen(str), r);
     NSString *filename = [NSString stringWithFormat:@"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                           r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]];
+    
+    return [dir stringByAppendingPathComponent:filename];
+}
 
-    return [self.diskCachePath stringByAppendingPathComponent:filename];
+
+- (NSString *)cachePathForKey:(NSString *)key
+{
+    return [self cachePathForKey:key directory:self.diskCachePath];
 }
 
 #pragma mark ImageCache
 
-- (void)storeImage:(UIImage *)image imageData:(NSData *)imageData forKey:(NSString *)key toDisk:(BOOL)toDisk
+- (void)storeImage:(UIImage *)image imageData:(NSData *)imageData forKey:(NSString *)key toDisk:(BOOL)toDisk permanent:(BOOL)permanent
 {
     if (!image || !key)
     {
@@ -128,26 +136,39 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
             {
                 // Can't use defaultManager another thread
                 NSFileManager *fileManager = NSFileManager.new;
-
-                if (![fileManager fileExistsAtPath:_diskCachePath])
-                {
-                    [fileManager createDirectoryAtPath:_diskCachePath withIntermediateDirectories:YES attributes:nil error:NULL];
+                
+                NSString *cachePath = _diskCachePath;
+                NSString *cacheFilePath = [self cachePathForKey:key];
+                
+                if (permanent) {
+                    cachePath = _permanentDiskCachePath;
+                    cacheFilePath = [self cachePathForKey:key directory:_permanentDiskCachePath];
                 }
 
-                [fileManager createFileAtPath:[self cachePathForKey:key] contents:data attributes:nil];
+                if (![fileManager fileExistsAtPath:cachePath])
+                {
+                    [fileManager createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:NULL];
+                }
+
+                [fileManager createFileAtPath:cacheFilePath contents:data attributes:nil];
             }
         });
     }
 }
 
+- (void)storeImage:(UIImage *)image imageData:(NSData *)imageData forKey:(NSString *)key toDisk:(BOOL)toDisk
+{
+    [self storeImage:image imageData:imageData forKey:key toDisk:toDisk permanent:NO];
+}
+
 - (void)storeImage:(UIImage *)image forKey:(NSString *)key
 {
-    [self storeImage:image imageData:nil forKey:key toDisk:YES];
+    [self storeImage:image imageData:nil forKey:key toDisk:YES permanent:NO];
 }
 
 - (void)storeImage:(UIImage *)image forKey:(NSString *)key toDisk:(BOOL)toDisk
 {
-    [self storeImage:image imageData:nil forKey:key toDisk:toDisk];
+    [self storeImage:image imageData:nil forKey:key toDisk:toDisk permanent:NO];
 }
 
 - (void)queryDiskCacheForKey:(NSString *)key done:(void (^)(UIImage *image, SDImageCacheType cacheType))doneBlock
@@ -171,6 +192,11 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
     dispatch_async(self.ioQueue, ^
     {
         UIImage *diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key]])];
+        
+        // Check permanent cache
+        if (!diskImage) {
+            diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key directory:_permanentDiskCachePath]])];
+        }
 
         if (diskImage)
         {
@@ -203,6 +229,7 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
         dispatch_async(self.ioQueue, ^
         {
             [[NSFileManager defaultManager] removeItemAtPath:[self cachePathForKey:key] error:nil];
+            [[NSFileManager defaultManager] removeItemAtPath:[self cachePathForKey:key directory:self.permanentDiskCachePath] error:nil];
         });
     }
 }
@@ -218,6 +245,12 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
     {
         [[NSFileManager defaultManager] removeItemAtPath:self.diskCachePath error:nil];
         [[NSFileManager defaultManager] createDirectoryAtPath:self.diskCachePath
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:NULL];
+
+        [[NSFileManager defaultManager] removeItemAtPath:self.permanentDiskCachePath error:nil];
+        [[NSFileManager defaultManager] createDirectoryAtPath:self.permanentDiskCachePath
                                   withIntermediateDirectories:YES
                                                    attributes:nil
                                                         error:NULL];
