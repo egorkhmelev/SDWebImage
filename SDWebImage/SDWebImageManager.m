@@ -18,7 +18,7 @@
 
 @interface SDWebImageManager ()
 
-@property (strong, nonatomic, readwrite) SDImageCache *imageCache;
+//@property (strong, nonatomic, readwrite) SDImageCache *imageCache;
 @property (strong, nonatomic, readwrite) SDWebImageDownloader *imageDownloader;
 @property (strong, nonatomic) NSMutableArray *failedURLs;
 @property (strong, nonatomic) NSMutableArray *runningOperations;
@@ -39,7 +39,7 @@
 {
     if ((self = [super init]))
     {
-        _imageCache = [SDImageCache sharedImageCache];
+//        _imageCache = [SDImageCache sharedImageCache];
         _imageDownloader = SDWebImageDownloader.new;
         _failedURLs = NSMutableArray.new;
         _runningOperations = NSMutableArray.new;
@@ -85,8 +85,13 @@
 
     [self.runningOperations addObject:operation];
     NSString *key = [self cacheKeyForURL:url];
-
-    [self.imageCache queryDiskCacheForKey:key done:^(UIImage *image, SDImageCacheType cacheType)
+    
+    SDImageCache *imageCache = [SDImageCache sharedImageCache];
+    if (options & SDWebImagePermanentCache){
+        imageCache = [SDImagePermanentCache sharedImageCache];
+    }
+    
+    [imageCache queryDiskCacheForKey:key done:^(UIImage *image, SDImageCacheType cacheType)
     {
         if (operation.isCancelled) return;
 
@@ -110,7 +115,7 @@
                 }
                 else if (downloadedImage && finished)
                 {
-                    [self.imageCache storeImage:downloadedImage imageData:data forKey:key toDisk:YES];
+                    [imageCache storeImage:downloadedImage imageData:data forKey:key toDisk:YES];
                 }
 
                 if (finished)
