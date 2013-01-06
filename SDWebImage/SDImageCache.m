@@ -317,28 +317,28 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 
 -(int)getSize
 {
-//    int size = 0;
-//    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
-//    for (NSString *fileName in fileEnumerator)
-//    {
-//        NSString *filePath = [self.diskCachePath stringByAppendingPathComponent:fileName];
-//        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
-//        size += [attrs fileSize];
-//    }
-//    return size;
+    int size = 0;
+    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:[self.diskCacheURL path]];
+    for (NSString *fileName in fileEnumerator)
+    {
+        NSString *filePath = [[self.diskCacheURL path] stringByAppendingPathComponent:fileName];
+        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
+        size += [attrs fileSize];
+    }
+    return size;
     return 0;
 }
 
 - (int)getDiskCount
 {
-//    int count = 0;
-//    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
-//    for (NSString *fileName in fileEnumerator)
-//    {
-//        count += 1;
-//    }
-//    
-//    return count;
+    int count = 0;
+    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:[self.diskCacheURL path]];
+    for (NSString *fileName in fileEnumerator)
+    {
+        count += 1;
+    }
+    
+    return count;
     return 0;
 }
 
