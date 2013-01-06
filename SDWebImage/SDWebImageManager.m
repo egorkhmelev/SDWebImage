@@ -92,6 +92,11 @@
 
         if (image)
         {
+            // User asks for permanent cache, however image only in memory/disk cache
+            if ((options & SDWebImagePermanentCache) && ![self.imageCache URLPersisted:url]) {
+                [self.imageCache storeImage:image imageData:nil forKey:key toDisk:YES permanent:YES];
+            }
+            
             completedBlock(image, nil, cacheType, YES);
             [self.runningOperations removeObject:operation];
         }

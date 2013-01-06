@@ -18,8 +18,8 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 @interface SDImageCache ()
 
 @property (strong, nonatomic) NSCache *memCache;
-@property (strong, nonatomic) NSString *diskCachePath;
-@property (strong, nonatomic) NSString *permanentDiskCachePath;
+@property (strong, nonatomic) NSURL *diskCacheURL;
+@property (strong, nonatomic) NSURL *permanentDiskCacheURL;
 @property (SDDispatchQueueSetterSementics, nonatomic) dispatch_queue_t ioQueue;
 
 @end
@@ -56,10 +56,16 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
         _memCache = [[NSCache alloc] init];
         _memCache.name = fullNamespace;
 
+        NSFileManager *fileManager = NSFileManager.new;
+
         // Init the disk cache
-        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-        _diskCachePath = [paths[0] stringByAppendingPathComponent:fullNamespace];
-        _permanentDiskCachePath = [paths[0] stringByAppendingPathComponent:[NSString stringWithFormat:@"permanent_%@", fullNamespace]];
+        NSURL *cachesDirectory = [fileManager URLForDirectory:NSCachesDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:YES error:nil];
+        _diskCacheURL = [cachesDirectory URLByAppendingPathComponent:fullNamespace isDirectory:YES];
+        
+        // Init permanent disk cache
+        NSString *permanentNamespace = [fullNamespace stringByAppendingString:@".permanent"];
+        NSURL *applicationSupportDirectory = [fileManager URLForDirectory:NSApplicationSupportDirectory inDomain:NSUserDomainMask appropriateForURL:nil create:YES error:nil];
+        _permanentDiskCacheURL = [applicationSupportDirectory URLByAppendingPathComponent:permanentNamespace isDirectory:YES];
 
 #if TARGET_OS_IPHONE
         // Subscribe to app events
@@ -86,7 +92,7 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 
 #pragma mark SDImageCache (private)
 
-- (NSString *)cachePathForKey:(NSString *)key directory:(NSString *)dir
+- (NSURL *)cacheURLForKey:(NSString *)key directory:(NSURL *)dirURL
 {
     const char *str = [key UTF8String];
     unsigned char r[CC_MD5_DIGEST_LENGTH];
@@ -94,13 +100,14 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
     NSString *filename = [NSString stringWithFormat:@"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                           r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]];
     
-    return [dir stringByAppendingPathComponent:filename];
+    return [dirURL URLByAppendingPathComponent:filename isDirectory:NO];
 }
 
 
 - (NSString *)cachePathForKey:(NSString *)key
 {
-    return [self cachePathForKey:key directory:self.diskCachePath];
+    NSURL *cacheUrl = [self cacheURLForKey:key directory:self.diskCacheURL];
+    return [cacheUrl path];
 }
 
 #pragma mark ImageCache
@@ -137,20 +144,26 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
                 // Can't use defaultManager another thread
                 NSFileManager *fileManager = NSFileManager.new;
                 
-                NSString *cachePath = _diskCachePath;
-                NSString *cacheFilePath = [self cachePathForKey:key];
-                
+                NSURL *cacheURL;
                 if (permanent) {
-                    cachePath = _permanentDiskCachePath;
-                    cacheFilePath = [self cachePathForKey:key directory:_permanentDiskCachePath];
+                    cacheURL = self.permanentDiskCacheURL;
+                } else {
+                    cacheURL = self.diskCacheURL;
                 }
-
-                if (![fileManager fileExistsAtPath:cachePath])
+                
+                if (![fileManager fileExistsAtPath:[cacheURL path]])
                 {
-                    [fileManager createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:NULL];
+                    [fileManager createDirectoryAtURL:cacheURL withIntermediateDirectories:YES attributes:nil error:NULL];
+
+                    if (permanent) {
+                        // Mark directory for iCloud as "do not back up"
+                        [cacheURL setResourceValue:[NSNumber numberWithBool:YES]
+                                            forKey:NSURLIsExcludedFromBackupKey error:nil];
+                    }
                 }
 
-                [fileManager createFileAtPath:cacheFilePath contents:data attributes:nil];
+                NSURL *cacheFileURL = [self cacheURLForKey:key directory:cacheURL];
+                [fileManager createFileAtPath:[cacheFileURL path] contents:data attributes:nil];
             }
         });
     }
@@ -191,11 +204,11 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 
     dispatch_async(self.ioQueue, ^
     {
-        UIImage *diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key]])];
+        UIImage *diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfURL:[self cacheURLForKey:key directory:self.diskCacheURL]])];
         
         // Check permanent cache
         if (!diskImage) {
-            diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfFile:[self cachePathForKey:key directory:_permanentDiskCachePath]])];
+            diskImage = [UIImage decodedImageWithImage:SDScaledImageForPath(key, [NSData dataWithContentsOfURL:[self cacheURLForKey:key directory:self.permanentDiskCacheURL]])];
         }
 
         if (diskImage)
@@ -228,8 +241,8 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
     {
         dispatch_async(self.ioQueue, ^
         {
-            [[NSFileManager defaultManager] removeItemAtPath:[self cachePathForKey:key] error:nil];
-            [[NSFileManager defaultManager] removeItemAtPath:[self cachePathForKey:key directory:self.permanentDiskCachePath] error:nil];
+            [[NSFileManager defaultManager] removeItemAtURL:[self cacheURLForKey:key directory:self.diskCacheURL] error:nil];
+            [[NSFileManager defaultManager] removeItemAtURL:[self cacheURLForKey:key directory:self.permanentDiskCacheURL] error:nil];
         });
     }
 }
@@ -243,17 +256,8 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
 {
     dispatch_async(self.ioQueue, ^
     {
-        [[NSFileManager defaultManager] removeItemAtPath:self.diskCachePath error:nil];
-        [[NSFileManager defaultManager] createDirectoryAtPath:self.diskCachePath
-                                  withIntermediateDirectories:YES
-                                                   attributes:nil
-                                                        error:NULL];
-
-        [[NSFileManager defaultManager] removeItemAtPath:self.permanentDiskCachePath error:nil];
-        [[NSFileManager defaultManager] createDirectoryAtPath:self.permanentDiskCachePath
-                                  withIntermediateDirectories:YES
-                                                   attributes:nil
-                                                        error:NULL];
+        [[NSFileManager defaultManager] removeItemAtURL:self.diskCacheURL error:nil];
+        [[NSFileManager defaultManager] removeItemAtURL:self.permanentDiskCacheURL error:nil];
     });
 }
 
@@ -262,42 +266,80 @@ static const NSInteger kDefaultCacheMaxCacheAge = 60 * 60 * 24 * 7; // 1 week
     dispatch_async(self.ioQueue, ^
     {
         NSDate *expirationDate = [NSDate dateWithTimeIntervalSinceNow:-self.maxCacheAge];
-        NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
-        for (NSString *fileName in fileEnumerator)
-        {
-            NSString *filePath = [self.diskCachePath stringByAppendingPathComponent:fileName];
-            NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
-            if ([[[attrs fileModificationDate] laterDate:expirationDate] isEqualToDate:expirationDate])
-            {
-                [[NSFileManager defaultManager] removeItemAtPath:filePath error:nil];
+        NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtURL:self.diskCacheURL
+                                                                     includingPropertiesForKeys:[NSArray arrayWithObject:NSURLContentModificationDateKey]
+                                                                                        options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                                                   errorHandler:nil];
+        for (NSURL *theURL in fileEnumerator) {
+            
+            NSDate *modificationDate;
+            [theURL getResourceValue:&modificationDate forKey:NSURLContentModificationDateKey error:NULL];
+            if ([[modificationDate laterDate:expirationDate] isEqualToDate:expirationDate]) {
+                [[NSFileManager defaultManager] removeItemAtURL:theURL error:nil];
             }
         }
     });
 }
 
+- (NSArray *)URLsByExcludingPersistedURLs:(NSArray *)listOfURLs
+{
+    NSMutableArray *notCached = [NSMutableArray array];
+    
+    for (id url in listOfURLs) {
+        if (![self URLPersisted:url]) {
+            [notCached addObject:url];
+        }
+    }
+    
+    return notCached;
+}
+
+- (BOOL)URLPersisted:(NSURL *)url
+{
+    if ([url isKindOfClass:[NSString class]]) {
+        url = [NSURL URLWithString:(NSString *)url];
+    }
+    
+    if (![url isKindOfClass:[NSURL class]]) {
+        return NO;
+    }
+    
+    return [self filePersistedForKey:[url absoluteString]];
+}
+
+- (BOOL)filePersistedForKey:(NSString *)key
+{
+    if ([[NSFileManager defaultManager] fileExistsAtPath:[[self cacheURLForKey:key directory:self.permanentDiskCacheURL] path]]){
+        return YES;
+    }
+    return NO;
+}
+
 -(int)getSize
 {
-    int size = 0;
-    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
-    for (NSString *fileName in fileEnumerator)
-    {
-        NSString *filePath = [self.diskCachePath stringByAppendingPathComponent:fileName];
-        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
-        size += [attrs fileSize];
-    }
-    return size;
+//    int size = 0;
+//    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
+//    for (NSString *fileName in fileEnumerator)
+//    {
+//        NSString *filePath = [self.diskCachePath stringByAppendingPathComponent:fileName];
+//        NSDictionary *attrs = [[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil];
+//        size += [attrs fileSize];
+//    }
+//    return size;
+    return 0;
 }
 
 - (int)getDiskCount
 {
-    int count = 0;
-    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
-    for (NSString *fileName in fileEnumerator)
-    {
-        count += 1;
-    }
-    
-    return count;
+//    int count = 0;
+//    NSDirectoryEnumerator *fileEnumerator = [[NSFileManager defaultManager] enumeratorAtPath:self.diskCachePath];
+//    for (NSString *fileName in fileEnumerator)
+//    {
+//        count += 1;
+//    }
+//    
+//    return count;
+    return 0;
 }
 
 @end

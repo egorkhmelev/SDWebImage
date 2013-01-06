@@ -118,6 +118,10 @@ typedef enum SDImageCacheType SDImageCacheType;
  */
 - (void)cleanDisk;
 
+- (NSArray *)URLsByExcludingPersistedURLs:(NSArray *)listOfURLs;
+- (BOOL)URLPersisted:(id)url;
+- (BOOL)filePersistedForKey:(NSString *)key;
+
 /**
  * Get the size used by the disk cache
  */
